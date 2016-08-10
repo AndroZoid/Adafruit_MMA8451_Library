@@ -36,7 +36,7 @@
 /*=========================================================================
     I2C ADDRESS/BITS
     -----------------------------------------------------------------------*/
-    #define MMA8451_DEFAULT_ADDRESS                 (0x1D)    // if A is GND, its 0x1C
+    #define MMA8451_DEFAULT_ADDRESS                 (0x1C)    // if A is GND, its 0x1C else (0x1D)
 /*=========================================================================*/
 
 #define MMA8451_REG_OUT_X_MSB     0x01
@@ -45,6 +45,10 @@
 #define MMA8451_REG_XYZ_DATA_CFG  0x0E
 #define MMA8451_REG_PL_STATUS     0x10
 #define MMA8451_REG_PL_CFG        0x11
+#define MMA8451_REG_FF_MT_CFG     0x15 //freefall/motion
+#define MMA8451_REG_FF_MT_SRC     0x16 //freefall/motion source   
+#define MMA8451_REG_FF_MT_THS     0x17 //treshold
+#define MMA8451_REG_FF_MT_COUNT   0x18 //debounce counter
 #define MMA8451_REG_CTRL_REG1     0x2A
 #define MMA8451_REG_CTRL_REG2     0x2B
 #define MMA8451_REG_CTRL_REG4     0x2D
@@ -116,6 +120,12 @@ class Adafruit_MMA8451
   float x_g, y_g, z_g;
 
   void writeRegister8(uint8_t reg, uint8_t value);
+  uint8_t readFfSource(void);
+  void setDebounce(uint8_t value);
+  uint8_t readDebounce(void);
+  void setMotionTreshold(uint8_t value);
+  uint8_t readMotionTreshold(void);
+  void activateFF_MT(bool pin);
  private:
   uint8_t readRegister8(uint8_t reg);
   int32_t _sensorID;

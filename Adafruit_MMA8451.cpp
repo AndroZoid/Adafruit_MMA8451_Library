@@ -10,6 +10,8 @@
     Adafruit invests time and resources providing this open source code,
     please support Adafruit and open-source hardware by purchasing
     products from Adafruit!
+    
+    Modification for motion detection via INT ports by O. Pistek
 
     @section  HISTORY
 
@@ -77,6 +79,21 @@ uint8_t Adafruit_MMA8451::readRegister8(uint8_t reg) {
 
 /**************************************************************************/
 /*!
+    @brief  Reads 8-bits from MMA8451_REG_FF_MT_SRC register for motion flag reset
+*/
+/**************************************************************************/
+uint8_t Adafruit_MMA8451::readFfSource(void) {
+    Wire.beginTransmission(_i2caddr);
+    i2cwrite(MMA8451_REG_FF_MT_SRC);
+    Wire.endTransmission(false); // MMA8451 + friends uses repeated start!!
+
+    Wire.requestFrom(_i2caddr, 1);
+    if (! Wire.available()) return -1;
+    return (i2cread());
+}
+
+/**************************************************************************/
+/*!
     @brief  Instantiates a new MMA8451 class in I2C mode
 */
 /**************************************************************************/
@@ -101,24 +118,39 @@ bool Adafruit_MMA8451::begin(uint8_t i2caddr) {
     //Serial.println(deviceid, HEX);
     return false;
   }
-
   writeRegister8(MMA8451_REG_CTRL_REG2, 0x40); // reset
 
   while (readRegister8(MMA8451_REG_CTRL_REG2) & 0x40);
 
+  //block of motion detection
+  
+//  uint8_t reg1 = readRegister8(MMA8451_REG_CTRL_REG1);
+//  writeRegister8(MMA8451_REG_CTRL_REG1, 0x00);            // deactivate
+  
+  writeRegister8(MMA8451_REG_CTRL_REG1, 0x18);  //Set the device in 100 Hz ODR, Standby 
+  
+//  writeRegister8(MMA8451_REG_FF_MT_CFG,0xF8);
+//  writeRegister8(MMA8451_REG_FF_MT_THS,0x10);
+//  writeRegister8(MMA8451_REG_FF_MT_COUNT,0x0A);
+  
+//  writeRegister8(MMA8451_REG_CTRL_REG4, 0x04);
+//  writeRegister8(MMA8451_REG_CTRL_REG5, 0x04);
+//  writeRegister8(MMA8451_REG_CTRL_REG1, reg1 | 0x01);     // activate
+
+
+
+
   // enable 4G range
-  writeRegister8(MMA8451_REG_XYZ_DATA_CFG, MMA8451_RANGE_4_G);
+//  writeRegister8(MMA8451_REG_XYZ_DATA_CFG, MMA8451_RANGE_4_G);
   // High res
-  writeRegister8(MMA8451_REG_CTRL_REG2, 0x02);
-  // DRDY on INT1
-  writeRegister8(MMA8451_REG_CTRL_REG4, 0x01);
-  writeRegister8(MMA8451_REG_CTRL_REG5, 0x01);
+//  writeRegister8(MMA8451_REG_CTRL_REG2, 0x02);
+
+
 
   // Turn on orientation config
-  writeRegister8(MMA8451_REG_PL_CFG, 0x40);
+  //writeRegister8(MMA8451_REG_PL_CFG, 0x40);
 
-  // Activate at max rate, low noise mode
-  writeRegister8(MMA8451_REG_CTRL_REG1, 0x01 | 0x04);
+
 
   /*
   for (uint8_t i=0; i<0x30; i++) {
@@ -212,6 +244,71 @@ void Adafruit_MMA8451::setDataRate(mma8451_dataRate_t dataRate)
 mma8451_dataRate_t Adafruit_MMA8451::getDataRate(void)
 {
   return (mma8451_dataRate_t)((readRegister8(MMA8451_REG_CTRL_REG1) >> 3) & MMA8451_DATARATE_MASK);
+}
+
+/**************************************************************************/
+/*!
+    @brief  activate freefall / motion detection for INT pin
+*/
+/**************************************************************************/
+void Adafruit_MMA8451::activateFF_MT(bool pin)
+{
+  uint8_t reg1 = readRegister8(MMA8451_REG_CTRL_REG1);
+  writeRegister8(MMA8451_REG_CTRL_REG1, 0x00);            // deactivate
+  writeRegister8(MMA8451_REG_FF_MT_CFG,0xE8); //F8 for all axes failing,D8 - xy failing,  F0 - ZY failing, E8 - XZ
+  writeRegister8(MMA8451_REG_CTRL_REG4, 0x04);
+  if(pin) writeRegister8(MMA8451_REG_CTRL_REG5, 0x00);
+    else writeRegister8(MMA8451_REG_CTRL_REG5, 0x04); 
+  writeRegister8(MMA8451_REG_CTRL_REG1, reg1 | 0x01);     // activate
+}
+
+/**************************************************************************/
+/*!
+    @brief  set debounce counter for motion / freefall detection
+    100 ms/10 ms (steps) = 10 counts
+    8bit counter
+*/
+/**************************************************************************/
+void Adafruit_MMA8451::setDebounce(uint8_t value)
+{
+  uint8_t reg1 = readRegister8(MMA8451_REG_CTRL_REG1);
+  writeRegister8(MMA8451_REG_CTRL_REG1, 0x00);            // deactivate
+  writeRegister8(MMA8451_REG_FF_MT_COUNT,value);
+  writeRegister8(MMA8451_REG_CTRL_REG1, reg1 | 0x01);     // activate
+}
+
+/**************************************************************************/
+/*!
+    @brief  Read the debounce:
+*/
+/**************************************************************************/
+uint8_t Adafruit_MMA8451::readDebounce(void) {
+  return readRegister8(MMA8451_REG_FF_MT_COUNT);
+}
+
+/**************************************************************************/
+/*!
+    @brief  set treshold for motion / freefall detection
+     0 to 127 counts
+     7 bit counter
+*/
+/**************************************************************************/
+void Adafruit_MMA8451::setMotionTreshold(uint8_t value)
+{
+
+  uint8_t reg1 = readRegister8(MMA8451_REG_CTRL_REG1);
+  writeRegister8(MMA8451_REG_CTRL_REG1, 0x00);            // deactivate
+  writeRegister8(MMA8451_REG_FF_MT_THS,value);
+  writeRegister8(MMA8451_REG_CTRL_REG1, reg1 | 0x01);     // activate
+}
+
+/**************************************************************************/
+/*!
+    @brief  Read the treshold:
+*/
+/**************************************************************************/
+uint8_t Adafruit_MMA8451::readMotionTreshold(void) {
+  return readRegister8(MMA8451_REG_FF_MT_THS);
 }
 
 #ifdef USE_SENSOR
